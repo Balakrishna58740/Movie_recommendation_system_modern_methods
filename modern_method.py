@@ -1,59 +1,77 @@
 import pandas as pd
-import gensim
 from gensim.models import Word2Vec
 from sklearn.metrics.pairwise import cosine_similarity
 import nltk
 from nltk.tokenize import word_tokenize
+
+# Download the NLTK punkt tokenizer if not already installed
 nltk.download('punkt')
 
-# Load the MovieLens dataset
-# For the example, we will assume the dataset has columns: movieId, title, genres, and description
-movies_data= pd.read_csv('/Music.csv')
+# Load the dataset
+movies_data = pd.read_csv('Comedy.csv')
 
-# Example data structure
-# movieId | title         | genres        | description
-# 1       | Toy Story     | Animation,Comedy | A story of a young boy's toys that come to life when he is away.
+# Create a 'description' column from other relevant columns
+# For example, concatenating 'genres' and 'movie_rated'
+movies_data['description'] = movies_data['genres'] + " " + movies_data['movie_rated']
 
-# Check the structure of the dataset
-# Function to preprocess text (tokenizing and cleaning)
+# Preprocessing: Tokenize and lowercase the movie descriptions
 def preprocess_text(text):
-    tokens = word_tokenize(text.lower())  # Tokenize and lowercase the text
-    return tokens
+    return word_tokenize(text.lower())
 
-# Apply the preprocessing function to the movie descriptions
 movies_data['tokens'] = movies_data['description'].apply(preprocess_text)
-# Train the Word2Vec model using movie descriptions
+
+# Train the Word2Vec model using tokenized movie descriptions
 model = Word2Vec(sentences=movies_data['tokens'], vector_size=100, window=5, min_count=1, workers=4)
 
-# Save the model for later use
+# Save the trained Word2Vec model
 model.save("movie_word2vec.model")
-# Function to get the vector representation of a movie's description
+
+# Function to compute the vector representation of a movie's description
 def get_movie_vector(movie_title):
-    # Get the movie's tokenized description
-    tokens = movies_data[movies_data['title'] == movie_title]['tokens'].values[0]
+    # Find the row corresponding to the movie title
+    movie_row = movies_data[movies_data['name'] == movie_title]
+    if movie_row.empty:
+        raise ValueError(f"Movie title '{movie_title}' not found in the dataset.")
     
-    # Get the vector for each word in the description and average them
-    movie_vector = sum([model.wv[word] for word in tokens if word in model.wv]) / len(tokens)
+    # Get the tokenized description
+    tokens = movie_row['tokens'].values[0]
     
+    # Calculate the average vector for the tokens
+    word_vectors = [model.wv[word] for word in tokens if word in model.wv]
+    if not word_vectors:
+        raise ValueError(f"No valid word vectors found for movie '{movie_title}'.")
+    
+    movie_vector = sum(word_vectors) / len(word_vectors)
     return movie_vector
 
-# Function to get similar movies
+# Function to find similar movies
 def get_similar_movies(movie_title, top_n=5):
-    movie_vector = get_movie_vector(movie_title)
+    try:
+        target_vector = get_movie_vector(movie_title)
+    except ValueError as e:
+        return str(e)
     
-    # Calculate cosine similarity between the target movie and all other movies
     similarities = []
-    for i, row in movies_data.iterrows():
-        other_movie_vector = get_movie_vector(row['title'])
-        similarity = cosine_similarity([movie_vector], [other_movie_vector])
-        similarities.append((row['title'], similarity[0][0]))
+    for _, row in movies_data.iterrows():
+        other_title = row['name']
+        if other_title == movie_title:
+            continue  # Skip comparing the movie with itself
+        
+        try:
+            other_vector = get_movie_vector(other_title)
+            similarity = cosine_similarity([target_vector], [other_vector])[0][0]
+            similarities.append((other_title, similarity))
+        except ValueError:
+            continue  # Skip movies with no valid vectors
     
-    # Sort the movies based on similarity scores and return the top N
+    # Sort by similarity in descending order and return the top N results
     sorted_similarities = sorted(similarities, key=lambda x: x[1], reverse=True)
-    return [movie[0] for movie in sorted_similarities[1:top_n+1]]
-
-# Example: Get similar movies to "Toy Story"
-similar_movies = get_similar_movies("Toy Story")
-print(f"Movies similar to 'Toy Story': {similar_movies}")
-
-
+    return [movie[0] for movie in sorted_similarities[:top_n]]
+count = 1
+# Example usage
+movies_data['title'] = movies_data['name']
+for i in movies_data['title']:
+    print(i)
+example_movie = input("Enter a movie title: ")
+similar_movies = get_similar_movies(example_movie)
+print(f"Movies similar to '{example_movie}': {similar_movies}")
