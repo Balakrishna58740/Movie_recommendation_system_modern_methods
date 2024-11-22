@@ -1,14 +1,18 @@
+import asyncio
 import pandas as pd
 from gensim.models import Word2Vec
 from sklearn.metrics.pairwise import cosine_similarity
 import nltk
 from nltk.tokenize import word_tokenize
-
+from main import fetch_data
+from main import app
+from db_config import mongodb
 # Download the NLTK punkt tokenizer if not already installed
 nltk.download('punkt')
 
-# Load the dataset
+
 movies_data = pd.read_csv('Comedy.csv')
+
 
 # Create a 'description' column from other relevant columns
 # For example, concatenating 'genres' and 'movie_rated'
@@ -19,7 +23,7 @@ def preprocess_text(text):
     return word_tokenize(text.lower())
 
 movies_data['tokens'] = movies_data['description'].apply(preprocess_text)
-
+movies_data['tokens'].head()
 # Train the Word2Vec model using tokenized movie descriptions
 model = Word2Vec(sentences=movies_data['tokens'], vector_size=100, window=5, min_count=1, workers=4)
 
@@ -69,9 +73,9 @@ def get_similar_movies(movie_title, top_n=5):
     return [movie[0] for movie in sorted_similarities[:top_n]]
 count = 1
 # Example usage
-movies_data['title'] = movies_data['name']
-for i in movies_data['title']:
-    print(i)
+# movies_data['title'] = movies_data['name']
+# for i in movies_data['title']:
+#     print(i)
 example_movie = input("Enter a movie title: ")
 similar_movies = get_similar_movies(example_movie)
 print(f"Movies similar to '{example_movie}': {similar_movies}")
