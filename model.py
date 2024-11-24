@@ -29,6 +29,7 @@ class MovieRecommender:
     def preprocess_text(text: str) -> list:
         return word_tokenize(text.lower()) if isinstance(text, str) else []
 
+
     @staticmethod
     def get_similar_movies(movie_title: str, model: Word2Vec, data: pd.DataFrame, top_n: int = 5) -> List[str]:
         try:
